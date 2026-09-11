@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Visualiseur caméras</title>
+<style>
+  :root {
+    --bg:#111111; --card:#1c1917; --border:#2a2623;
+    --orange:#f97316; --text:#faf9f6; --muted:#8a8580;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
+  header { padding:16px 20px; border-bottom:1px solid var(--border);
+    display:flex; align-items:center; justify-content:space-between; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  header .status { font-size:12px; color:var(--muted); }
+  #grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr));
+    gap:14px; padding:20px; }
+  .cam { background:var(--card); border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+  .cam .head { padding:8px 12px; font-size:13px; display:flex; justify-content:space-between;
+    align-items:center; border-bottom:1px solid var(--border); }
+  .cam .head .name { font-weight:500; }
+  .cam .head .dot { width:8px; height:8px; border-radius:50%; background:#555; }
+  .cam .head .dot.on { background:var(--orange); }
+  .cam img { width:100%; display:block; background:#000; aspect-ratio:16/9; object-fit:contain; }
+  .cam .foot { padding:6px 12px; font-size:11px; color:var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Visualiseur caméras</h1>
+  <span class="status" id="status">Chargement…</span>
+</header>
+<div id="grid"></div>
+<script>
+function esc(s){return String(s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+async function load(){
+  const res = await fetch('/api/cameras');
+  const data = await res.json();
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+  data.cameras.forEach(c => {
+    const el = document.createElement('div');
+    el.className = 'cam';
+    el.innerHTML =
+      '<div class="head"><span class="name">'+esc(c.name)+'</span>'+
+      '<span class="dot" id="dot-'+esc(c.id)+'"></span></div>'+
+      '<img src="/stream/'+encodeURIComponent(c.id)+'" '+
+      'onload="document.getElementById(\'dot-'+esc(c.id)+'\').classList.add(\'on\')" '+
+      'onerror="document.getElementById(\'dot-'+esc(c.id)+'\').classList.remove(\'on\')">'+
+      '<div class="foot">'+esc(c.id)+'</div>';
+    grid.appendChild(el);
+  });
+  document.getElementById('status').textContent = data.cameras.length + ' caméra(s)';
+}
+load();
+</script>
+</body>
+</html>

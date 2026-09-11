@@ -1,0 +1,19 @@
+# Secrets and local config
+cameras.json
+.env
+.env.*
+*.key
+*.pem
+
+# Proprietary SDK binaries and archives
+sdk/
+sdk_officiel/
+docker/libs/
+docker/HCNetSDK.h
+hikvision/
+
+# Local output and caches
+docker/out/
+*.jpg
+__pycache__/
+.DS_Store

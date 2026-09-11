@@ -1,0 +1,25 @@
+{
+  "cameras": [
+    {
+      "id": "bossini-dvr1-cam1",
+      "name": "Bossini Ste-Foy - DVR1 - Caméra 1",
+      "host": "bstf-rtr-gw.gbm10.com",
+      "port": 8001,
+      "channel": 33
+    },
+    {
+      "id": "bossini-dvr2-cam1",
+      "name": "Bossini Ste-Foy - DVR2 - Caméra 1",
+      "host": "bstf-rtr-gw.gbm10.com",
+      "port": 8000,
+      "channel": 33
+    },
+    {
+      "id": "bossini-dvr3-cam1",
+      "name": "Bossini Ste-Foy - DVR3 - Caméra 1",
+      "host": "bstf-rtr-gw.gbm10.com",
+      "port": 7000,
+      "channel": 33
+    }
+  ]
+}
