@@ -49,6 +49,7 @@ Arrêt : `./stop.sh`
 |---|---|
 | `GET /api/nvrs` | inventaire JSON : modèle, canaux, état de connexion |
 | `GET /snapshot/<nvr>/<canal>` | JPEG pleine résolution |
+| `GET /live/<nvr>/<canal>` | flux vidéo continu (MJPEG multipart, sous-flux) |
 | `GET /clip/<nvr>/<canal>?start=YYYYMMDDHHMMSS&end=YYYYMMDDHHMMSS` | exporte un clip vidéo HEVC |
 | `GET /health` | identique à `/api/nvrs` |
 
@@ -94,6 +95,7 @@ Interface web :8080
 - Colima ne monte pas `/var/folders` dans sa VM : les volumes Docker doivent pointer sous `$HOME`.
 - **Timezone** : le conteneur Debian est en UTC par défaut alors que les NVR sont à l'heure locale (UTC-4). Une recherche d'enregistrements calculée en UTC vise le futur du NVR et ne trouve rien. Installer `tzdata` et `TZ=America/Toronto`.
 - **Export de clip** : il faut `NET_DVR_GetFileByTime_V40` (pas l'ancienne `GetFileByTime`), avec `NET_DVR_PLAYCOND.byDownload = 1`, puis `PlayBackControl(PLAYSTART)` pour lancer le téléchargement. Sans le `PLAYSTART`, le SDK crée le fichier mais n'écrit rien (0 octet).
+- **Flux live à distance** : le RTSP (`byProtoType=1`, port 554) n'est pas forwardé sur le routeur du site. Il faut le **protocole privé** (`byProtoType=0`, port SDK), comme iVMS-4200. Le flux privé commence par un en-tête propriétaire `IMKH` (29 octets) avant le MPEG-PS réel : le retirer avant de le passer à ffmpeg, sinon aucun décodage.
 
 ## Sécurité et licence
 

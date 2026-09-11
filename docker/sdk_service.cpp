@@ -5,13 +5,16 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <pthread.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <string>
 #include <sys/socket.h>
+#include <sys/wait.h>
 #include <unistd.h>
 #include <vector>
+#include <map>
 #include "HCNetSDK.h"
 
 struct Nvr {
@@ -174,6 +177,120 @@ static std::string jsonInventory() {
     return j + "]}";
 }
 
+// ---------- Live (flux continu) ----------
+// Le callback standard fournit un flux H.264 brut. On le pipe dans ffmpeg
+// (sous-processus) qui le décode et le ré-encode en MJPEG, puis on encapsule
+// chaque image JPEG en multipart/x-mixed-replace pour le navigateur.
+
+static std::map<LONG, int> g_live_pipes;         // realPlayHandle -> fd d'écriture ffmpeg
+static std::map<LONG, int> g_live_started;       // realPlayHandle -> en-tête IMKH déjà retiré
+static pthread_mutex_t g_live_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+// Le flux privé Hikvision commence par un en-tête propriétaire "IMKH" suivi du
+// MPEG-PS standard (start code 00 00 01 ba). On retire l'en-tête une fois, puis
+// on laisse passer le flux PS brut vers ffmpeg.
+static void CALLBACK stdDataCallback(LONG h, DWORD, BYTE *buf, DWORD size, DWORD) {
+    pthread_mutex_lock(&g_live_mutex);
+    auto it = g_live_pipes.find(h);
+    int fd = it != g_live_pipes.end() ? it->second : -1;
+    int &started = g_live_started[h];
+    pthread_mutex_unlock(&g_live_mutex);
+    if (fd < 0) return;
+
+    if (!started) {
+        // cherche le start code PS (00 00 01 ba) pour sauter l'en-tête IMKH
+        for (DWORD i = 0; i + 4 <= size; i++) {
+            if (buf[i] == 0x00 && buf[i+1] == 0x00 && buf[i+2] == 0x01 &&
+                (buf[i+3] == 0xba || buf[i+3] == 0xbb)) {
+                buf += i; size -= i;
+                started = 1;
+                break;
+            }
+        }
+        if (!started) return;  // pas encore trouvé, on attend la suite
+    }
+    write(fd, buf, size);
+}
+
+static void serveLive(int cfd, Nvr &n, int chan) {
+    NET_DVR_PREVIEWINFO pi;
+    memset(&pi, 0, sizeof pi);
+    pi.lChannel = chan;
+    pi.dwStreamType = 1;     // sous-flux (plus léger)
+    pi.dwLinkMode = 0;       // TCP
+    pi.hPlayWnd = 0;
+    pi.bBlocked = 0;         // non bloquant
+    pi.byProtoType = 0;      // protocole privé (passe par le port SDK, pas RTSP)
+    pi.byDataType = 0;
+
+    pthread_mutex_lock(&n.lock);
+    if (n.uid < 0) nvrLogin(n);
+    LONG h = n.uid >= 0 ? NET_DVR_RealPlay_V40(n.uid, &pi, nullptr, nullptr) : -1;
+    pthread_mutex_unlock(&n.lock);
+    if (h < 0) {
+        reply(cfd, "502 Bad Gateway", "text/plain", "flux live indisponible (code SDK)");
+        close(cfd);
+        return;
+    }
+    printf("[%s] live ch%d demarre handle=%ld\n", n.id.c_str(), chan, (long)h);
+    fflush(stdout);
+
+    int toff[2], fromff[2];
+    if (pipe(toff) || pipe(fromff)) { NET_DVR_StopRealPlay(h); reply(cfd, "500", "text/plain", "pipe"); close(cfd); return; }
+
+    pid_t pid = fork();
+    if (pid == 0) {
+        dup2(toff[0], 0); close(toff[0]); close(toff[1]);
+        dup2(fromff[1], 1); close(fromff[0]); close(fromff[1]);
+        // Le flux privé Hikvision est un MPEG-PS (program stream) : ffmpeg le décode.
+        execlp("ffmpeg", "ffmpeg", "-loglevel", "error",
+               "-f", "mpeg", "-i", "pipe:0", "-an",
+               "-c:v", "mjpeg", "-q:v", "8",
+               "-f", "image2pipe", "pipe:1", (char*)nullptr);
+        _exit(127);
+    }
+    close(toff[0]); close(fromff[1]);
+
+    pthread_mutex_lock(&g_live_mutex);
+    g_live_pipes[h] = toff[1];
+    pthread_mutex_unlock(&g_live_mutex);
+    NET_DVR_SetRealDataCallBack(h, stdDataCallback, 0);
+
+    const char *hdr = "HTTP/1.1 200 OK\r\nContent-Type: multipart/x-mixed-replace; boundary=frame\r\n"
+                      "Cache-Control: no-store\r\nAccess-Control-Allow-Origin: *\r\n\r\n";
+    sendAll(cfd, hdr, strlen(hdr));
+
+    std::string acc;
+    char buf[65536];
+    for (;;) {
+        ssize_t r = read(fromff[0], buf, sizeof buf);
+        if (r <= 0) break;
+        acc.append(buf, r);
+        size_t s;
+        while ((s = acc.find("\xff\xd8")) != std::string::npos) {
+            size_t e = acc.find("\xff\xd9", s + 2);
+            if (e == std::string::npos) break;
+            std::string jpeg = acc.substr(s, e + 2 - s);
+            acc.erase(0, e + 2);
+            char len[32];
+            int ln = snprintf(len, sizeof len, "%zu", jpeg.size());
+            std::string frame = "--frame\r\nContent-Type: image/jpeg\r\nContent-Length: ";
+            frame += len; frame += "\r\n\r\n"; frame += jpeg; frame += "\r\n";
+            if (send(cfd, frame.data(), frame.size(), 0) <= 0) { r = 0; break; }
+        }
+        if (r <= 0) break;
+    }
+
+    pthread_mutex_lock(&g_live_mutex);
+    g_live_pipes.erase(h);
+    g_live_started.erase(h);
+    pthread_mutex_unlock(&g_live_mutex);
+    NET_DVR_StopRealPlay(h);
+    close(toff[1]); close(fromff[0]);
+    kill(pid, SIGKILL); waitpid(pid, nullptr, 0);
+    close(cfd);
+}
+
 static void *serve(void *arg) {
     int fd = (int)(intptr_t)arg;
     char req[2048];
@@ -186,6 +303,16 @@ static void *serve(void *arg) {
 
     if (!strcmp(path, "/api/nvrs") || !strcmp(path, "/health")) {
         reply(fd, "200 OK", "application/json", jsonInventory());
+    } else if (!strncmp(path, "/live/", 6)) {
+        char id[64] = {0}; int chan = 0;
+        if (sscanf(path + 6, "%63[^/]/%d", id, &chan) == 2) {
+            Nvr *n = findNvr(id);
+            if (n) serveLive(fd, *n, chan);   // serveLive ferme le socket lui-même
+            else { reply(fd, "404 Not Found", "text/plain", "nvr inconnu"); close(fd); }
+            return nullptr;
+        } else {
+            reply(fd, "400 Bad Request", "text/plain", "format: /live/<nvr>/<canal>");
+        }
     } else if (!strncmp(path, "/clip/", 6)) {
         char id[64] = {0}; int chan = 0;
         if (sscanf(path + 6, "%63[^/]/%d", id, &chan) == 2) {

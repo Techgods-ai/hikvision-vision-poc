@@ -67,6 +67,7 @@ const lb = document.getElementById('lb');
 let nvrs = [], active = null, timer = null, busy = false;
 
 const url = (id, ch) => `${API}/snapshot/${id}/${ch}?t=${Date.now()}`;
+const liveUrl = (id, ch) => `${API}/live/${id}/${ch}`;
 
 // Le SDK sérialise les captures : on charge canal par canal pour ne pas saturer le NVR.
 function load(img, src) {
@@ -131,9 +132,10 @@ function show(id) {
       <div class="fr"><div class="msg">chargement…</div><img alt="Caméra ${i + 1}" hidden></div>`;
     const img = el.querySelector('img');
     el.querySelector('.fr').onclick = () => {
-      if (img.hidden) return;
-      lb.querySelector('img').src = img.src;
-      document.getElementById('lbT').textContent = `${n.model} · canal ${ch}`;
+      // Ouvre le flux live continu dans le dialogue
+      const li = lb.querySelector('img');
+      li.src = liveUrl(n.id, ch);
+      document.getElementById('lbT').textContent = `${n.model} · canal ${ch} — flux live`;
       lb.showModal();
     };
     grid.append(el);
@@ -151,6 +153,7 @@ function schedule() {
 document.getElementById('rate').onchange = schedule;
 document.getElementById('now').onclick = sweep;
 lb.onclick = e => { if (e.target === lb) lb.close(); };
+lb.onclose = () => { lb.querySelector('img').src = ''; };  // coupe le flux live
 boot();
 </script>
 </body>

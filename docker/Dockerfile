@@ -1,6 +1,6 @@
 FROM --platform=linux/amd64 debian:bookworm-slim
 
-RUN apt-get update && apt-get install -y --no-install-recommends g++ libc6-dev tzdata \
+RUN apt-get update && apt-get install -y --no-install-recommends g++ libc6-dev tzdata ffmpeg \
     && ln -sf /usr/share/zoneinfo/America/Toronto /etc/localtime \
     && rm -rf /var/lib/apt/lists/*
 
