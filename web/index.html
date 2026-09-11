@@ -441,7 +441,7 @@ function renderEvents() {
     d.innerHTML = `<img class="thumb" src="${AI_API}/events/${e.id}/image" alt="">
       <div class="meta">
         <div class="t1">${e.type} <span class="conf">${e.conf}%</span></div>
-        <div class="t2">${e.cam}${e.count > 1 ? ` · ${e.count} personnes` : ''}</div>
+        <div class="t2">${e.cam}${e.count > 1 ? ` · ${e.count} ${e.cls || 'objets'}` : ''}</div>
       </div>
       <span class="stat ${e.status}">${STAT_LABEL[e.status]}</span>
       <span class="time">${e.time}</span>`;

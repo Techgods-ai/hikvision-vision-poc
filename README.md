@@ -47,15 +47,26 @@ Arrêt : `./stop.sh`
 
 ## Service d'analyse IA
 
-Le service d'analyse (Python, `analyze.py`) détecte les personnes sur les
-snapshots et expose les événements sur le port **8091**.
+Le service d'analyse (Python, `analyze.py`) détecte les objets sur les
+snapshots et applique un **moteur de règles** (config `rules.json`) pour
+flager les événements métier. Il expose les événements sur le port **8091**.
 
 ```bash
 # Attention : vider PYTHONPATH (le venv du Hermes agent contamine Python)
-env -u PYTHONPATH python3 analyze.py --interval 5 --model yolov8n.pt
+env -u PYTHONPATH python3 analyze.py --interval 5 --model yolov8n.pt --rules rules.json
 ```
 
 Prérequis : `pip install ultralytics` (installe torch, opencv, pillow).
+
+### Moteur de règles
+
+`rules.json` décrit chaque cas d'usage sans toucher au code :
+
+- **règle simple** : `classes` + `min_conf` + `min_count` (ex. sac en zone restreinte) ;
+- **règle durée** : + `min_duration` (ex. présence prolongée au cellier) ;
+- **règle clustering** : + `cluster_radius` (ex. file d'attente : N personnes groupées).
+
+Tester le moteur : `env -u PYTHONPATH python3 test_rules.py`.
 
 | Route | Réponse |
 |---|---|
@@ -63,6 +74,7 @@ Prérequis : `pip install ultralytics` (installe torch, opencv, pillow).
 | `GET /events/<id>/image` | snapshot annoté (boîtes de détection) |
 | `GET /stats` | compteurs : détectés / validés / faux positifs |
 | `POST /events/<id>/label` | validation humaine `{"label":"ok"\|"fp"}` |
+| `GET /rules` | règles chargées |
 
 ### Pipeline complet
 
