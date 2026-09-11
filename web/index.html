@@ -399,17 +399,33 @@ function schedule() {
   if (ms) timer = setInterval(sweep, ms);
 }
 
-/* ---------- événements IA (données de démo) ---------- */
-let EVENTS = [
-  { id: 1, cam: 'Bossini Ste-Foy · Caméra 1 (ch33)', time: '12:41:07', type: 'Mouvement suspect', conf: 87, status: 'pending', nvr: 'nvr8000', ch: 33 },
-  { id: 2, cam: 'Bossini Ste-Foy · Caméra 4 (ch36)', time: '12:38:52', type: 'Personne après fermeture', conf: 92, status: 'pending', nvr: 'nvr8000', ch: 36 },
-  { id: 3, cam: 'Bossini Ste-Foy · Caméra 2 (ch34)', time: '12:35:11', type: 'Véhicule zone interdite', conf: 71, status: 'pending', nvr: 'nvr8000', ch: 34 },
-  { id: 4, cam: 'Bossini Ste-Foy · Caméra 1 (ch33)', time: '11:58:40', type: 'Mouvement suspect', conf: 64, status: 'ok', nvr: 'nvr8000', ch: 33 },
-  { id: 5, cam: 'Bossini Ste-Foy · Caméra 3 (ch35)', time: '11:47:02', type: 'Personne après fermeture', conf: 45, status: 'fp', nvr: 'nvr8000', ch: 35 },
-  { id: 6, cam: 'Bossini Ste-Foy · Caméra 6 (ch38)', time: '11:22:18', type: 'Véhicule zone interdite', conf: 80, status: 'ok', nvr: 'nvr8000', ch: 38 },
-];
+/* ---------- événements IA (service d'analyse réel, port 8091) ---------- */
+const AI_API = 'http://localhost:8091';
+let EVENTS = [];
 let evFilter = 'pending';
+let evTimer = null;
 const STAT_LABEL = { pending: 'À valider', ok: 'Validé', fp: 'Faux positif' };
+
+async function fetchEvents() {
+  try {
+    const r = await fetch(`${AI_API}/events`);
+    if (r.ok) {
+      EVENTS = (await r.json()).map(e => ({
+        ...e,
+        cam: nvrLabel(e.nvr, e.chan),
+        time: e.ts,
+        status: e.label || 'pending',
+      }));
+      if (!document.getElementById('view-events').hidden) renderEvents();
+    }
+  } catch { /* service d'analyse hors ligne : on garde la dernière liste */ }
+}
+function nvrLabel(nvr, ch) {
+  const n = nvrs.find(x => x.id === nvr);
+  const name = curSite?.name || '';
+  const model = n ? n.model : nvr;
+  return `${name} · ${model} · canal ${ch}`;
+}
 
 function renderEvents() {
   const el = document.getElementById('evlist');
@@ -422,10 +438,10 @@ function renderEvents() {
     const d = document.createElement('div');
     d.className = 'ev';
     d.style.setProperty('--i', i);
-    d.innerHTML = `<img class="thumb" src="${url(e.nvr, e.ch)}" alt="">
+    d.innerHTML = `<img class="thumb" src="${AI_API}/events/${e.id}/image" alt="">
       <div class="meta">
         <div class="t1">${e.type} <span class="conf">${e.conf}%</span></div>
-        <div class="t2">${e.cam}</div>
+        <div class="t2">${e.cam}${e.count > 1 ? ` · ${e.count} personnes` : ''}</div>
       </div>
       <span class="stat ${e.status}">${STAT_LABEL[e.status]}</span>
       <span class="time">${e.time}</span>`;
@@ -436,7 +452,7 @@ function renderEvents() {
 }
 function openEvent(e) {
   document.getElementById('soTitle').textContent = e.type;
-  document.getElementById('soImg').src = url(e.nvr, e.ch);
+  document.getElementById('soImg').src = `${AI_API}/events/${e.id}/image`;
   document.getElementById('soCam').textContent = e.cam;
   document.getElementById('soTime').textContent = e.time;
   document.getElementById('soType').textContent = e.type;
@@ -445,9 +461,16 @@ function openEvent(e) {
   so.classList.add('open');
 }
 function soClose() { so.classList.remove('open'); }
-function soMark(status) {
-  const e = EVENTS.find(x => x.id == so.dataset.id);
-  if (e) { e.status = status; renderEvents(); }
+async function soMark(status) {
+  const id = so.dataset.id;
+  try {
+    await fetch(`${AI_API}/events/${id}/label`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ label: status === 'ok' ? 'ok' : 'fp' }),
+    });
+  } catch {}
+  await fetchEvents();
   soClose();
 }
 
@@ -488,6 +511,8 @@ renderSites();
 renderViews();
 switchView('cameras');
 boot();
+fetchEvents();
+evTimer = setInterval(fetchEvents, 5000);   // rafraîchit les événements IA
 </script>
 </body>
 </html>

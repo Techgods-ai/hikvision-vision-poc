@@ -8,8 +8,10 @@ Validé sur macOS Apple Silicon (Colima + Docker, émulation `linux/amd64`) :
 
 - login SDK sur les 3 NVR du site, avec reconnexion automatique ;
 - capture JPEG **1920x1080** (résolution native du flux) ;
-- API HTTP locale de snapshots ;
-- interface web avec onglets par NVR, rafraîchissement réglable et plein écran.
+- API HTTP locale de snapshots, clips et flux live ;
+- interface web multi-vues (caméras, événements, clips, analytics) ;
+- **service d'analyse IA** : détection de personnes (YOLO) sur les snapshots,
+  avec validation humaine et compteurs de faux positifs.
 
 | Port SDK | Modèle | Canaux |
 |---:|---|---:|
@@ -42,6 +44,35 @@ cp .env.example .env    # renseigner HIK_HOST, HIK_USER, HIK_PASS
 Interface : http://localhost:8080
 
 Arrêt : `./stop.sh`
+
+## Service d'analyse IA
+
+Le service d'analyse (Python, `analyze.py`) détecte les personnes sur les
+snapshots et expose les événements sur le port **8091**.
+
+```bash
+# Attention : vider PYTHONPATH (le venv du Hermes agent contamine Python)
+env -u PYTHONPATH python3 analyze.py --interval 5 --model yolov8n.pt
+```
+
+Prérequis : `pip install ultralytics` (installe torch, opencv, pillow).
+
+| Route | Réponse |
+|---|---|
+| `GET /events` | derniers événements détectés |
+| `GET /events/<id>/image` | snapshot annoté (boîtes de détection) |
+| `GET /stats` | compteurs : détectés / validés / faux positifs |
+| `POST /events/<id>/label` | validation humaine `{"label":"ok"\|"fp"}` |
+
+### Pipeline complet
+
+```text
+NVR Hikvision → sdk_service (:8090) → snapshot JPEG 1080p
+                                         ↓
+                              analyze.py (:8091) → YOLO → événements
+                                         ↓
+                              interface web (:8080) → validation humaine
+```
 
 ## API
 
@@ -105,10 +136,34 @@ Le mot de passe utilisé pendant le POC a circulé hors du dépôt : une rotatio
 
 Les bibliothèques Hikvision sont propriétaires et exclues du dépôt (`.gitignore`). Vérifier les conditions Hikvision avant toute redistribution ou publication d'une image Docker les contenant.
 
+### Licence du modèle d'analyse (point critique avant mise en production)
+
+Le POC utilise **YOLOv8n via Ultralytics**, sous licence **AGPL-3.0**. Cette
+licence est **copyleft** : toute utilisation en contexte propriétaire (interne
+ou commerciale) exige soit d'ouvrir tout le code source du projet sous AGPL,
+soit d'acheter une **licence commerciale Enterprise** à Ultralytics.
+
+Pour la production, deux voies :
+
+1. **Licence commerciale Ultralytics** — déployer YOLO en source fermée sans
+   obligation d'open-source. À chiffrer.
+2. **Alternative à licence permissive** (aucune obligation d'open-source) :
+   - **RF-DETR** — Apache 2.0 ;
+   - **YOLOX** — Apache 2.0 ;
+   - **LibreYOLO** — MIT (code).
+
+Le boss a déjà tranché : **commercial sous licence**, pas d'open-source AGPL
+gratuit. Donc avant tout déploiement, soit négocier la licence Ultralytics,
+soit basculer sur RF-DETR / YOLOX (Apache 2.0) qui autorisent l'usage
+propriétaire sans frais de licence ni obligation de publication.
+
+Le POC prouve le pipeline ; le choix du modèle final est une décision
+juridique/coût, pas technique.
+
 ## Prochaines étapes
 
 1. Confirmer l'inventaire complet des canaux actifs sur les 3 NVR.
-2. Ajouter l'export de clips (`NET_DVR_PlayBackByTime`) pour constituer un jeu d'évaluation.
-3. Brancher le moteur d'analyse sous licence commerciale sur le flux de snapshots.
-4. Ajouter la file de validation humaine et les métriques de précision.
+2. Tranchir la licence du modèle (Ultralytics Enterprise vs RF-DETR/YOLOX Apache-2.0).
+3. Étendre la détection aux cas d'usage réels (zones, horaires, véhicules).
+4. Brancher la file de validation humaine et les métriques de précision sur la durée.
 5. Encadrer la conformité : ÉFVP, durée de conservation, journal d'accès, zones exclues.
