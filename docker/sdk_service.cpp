@@ -142,8 +142,20 @@ static bool exportClip(Nvr &n, int chan, const std::string &start, const std::st
         if (pos == 100 || pos < 0) break;
     }
     NET_DVR_StopGetFile(h);
+
+    // Vérifie qu'un enregistrement a réellement été téléchargé (le NVR peut
+    // être en enregistrement sur événement : plage vide = fichier de 0 octet).
+    FILE *f = fopen(file, "rb");
+    long sz = f ? (fseek(f, 0, SEEK_END), ftell(f)) : -1;
+    if (f) fclose(f);
+    if (sz <= 0) {
+        unlink(file);
+        printf("[%s] clip ch%d vide (aucun enregistrement sur la plage)\n", n.id.c_str(), chan);
+        fflush(stdout);
+        return false;
+    }
     savedPath = file;
-    printf("[%s] clip exporté ch%d : %s\n", n.id.c_str(), chan, file);
+    printf("[%s] clip exporté ch%d : %s (%ld octets)\n", n.id.c_str(), chan, file, sz);
     fflush(stdout);
     return true;
 }
@@ -327,7 +339,8 @@ static void *serve(void *arg) {
                     reply(fd, "200 OK", "application/json",
                           "{\"status\":\"ok\",\"file\":\"" + saved + "\"}");
                 else
-                    reply(fd, "502 Bad Gateway", "text/plain", "export impossible (plage vide ou NVR indisponible)");
+                    reply(fd, "404 Not Found", "text/plain",
+                          "aucun enregistrement sur cette plage (NVR en enregistrement sur événement ?)");
             }
         } else {
             reply(fd, "400 Bad Request", "text/plain", "format: /clip/<nvr>/<canal>?start=..&end=..");

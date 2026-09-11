@@ -3,44 +3,123 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Caméras · Bossini Ste-Foy</title>
+<title>Vision · Monitoring</title>
 <style>
-  :root{--bg:#0c0a09;--card:#1c1917;--line:#292524;--or:#f97316;--tx:#fafaf9;--mu:#a8a29e}
+  :root{--bg:#0c0a09;--card:#1c1917;--line:#292524;--or:#f97316;--tx:#fafaf9;--mu:#a8a29e;--dim:#57534e}
   *{box-sizing:border-box;margin:0}
   body{background:var(--bg);color:var(--tx);font:14px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
-  header{display:flex;align-items:center;gap:16px;padding:12px 20px;border-bottom:1px solid var(--line);position:sticky;top:0;background:rgba(12,10,9,.92);backdrop-filter:blur(12px);z-index:10;flex-wrap:wrap}
-  h1{font-size:15px;font-weight:600;letter-spacing:-.01em}
+  /* ---------- header ---------- */
+  header{display:flex;align-items:center;gap:14px;padding:10px 20px;border-bottom:1px solid var(--line);position:sticky;top:0;background:rgba(12,10,9,.94);backdrop-filter:blur(12px);z-index:20;flex-wrap:wrap}
+  .brand{display:flex;align-items:center;gap:9px}
+  .logo{width:22px;height:22px;border-radius:6px;background:var(--or);display:grid;place-items:center;font-weight:700;color:#0c0a09;font-size:12px}
+  .brand b{font-size:14px;font-weight:600;letter-spacing:-.01em}
+  .brand .sub{font-size:10.5px;color:var(--mu);font-weight:400}
   .sp{flex:1}
-  .tabs{display:flex;gap:2px;background:var(--card);padding:2px;border-radius:8px}
-  .tab{padding:5px 12px;border:0;background:0;color:var(--mu);font:inherit;font-size:13px;border-radius:6px;cursor:pointer;transition:.15s}
-  .tab:hover{color:var(--tx)}
-  .tab[aria-selected=true]{background:var(--or);color:#0c0a09;font-weight:600}
   .ctrl{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--mu)}
   select{background:var(--card);color:var(--tx);border:1px solid var(--line);border-radius:6px;padding:4px 8px;font:inherit;font-size:12px}
   button.act{background:var(--card);color:var(--tx);border:1px solid var(--line);border-radius:6px;padding:5px 12px;font:inherit;font-size:12px;cursor:pointer}
   button.act:hover{border-color:var(--or)}
-  #grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;padding:16px 20px}
+  /* ---------- barre de navigation ---------- */
+  nav{display:flex;gap:2px;padding:8px 20px;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:19;flex-wrap:wrap;align-items:center}
+  .pills{display:flex;gap:2px;background:var(--card);padding:2px;border-radius:8px}
+  .pill{padding:5px 13px;border:0;background:0;color:var(--mu);font:inherit;font-size:13px;border-radius:6px;cursor:pointer;transition:.15s;position:relative}
+  .pill:hover{color:var(--tx)}
+  .pill[aria-selected=true]{background:var(--or);color:#0c0a09;font-weight:600}
+  .pill .soon{margin-left:4px;font-size:9.5px;text-transform:uppercase;letter-spacing:.04em;opacity:.65}
+  /* ---------- vues ---------- */
+  main{padding:16px 20px}
+  section.view{animation:in .35s both}
+  section.view[hidden]{display:none}
+  @keyframes in{from{opacity:0;filter:blur(6px);transform:translateY(6px)}to{opacity:1;filter:none;transform:none}}
+  /* ---------- grille caméras ---------- */
+  #grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
   .cam{background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden;animation:in .4s both}
   .cam:nth-child(n){animation-delay:calc(var(--i,0)*40ms)}
-  @keyframes in{from{opacity:0;filter:blur(6px);transform:translateY(6px)}to{opacity:1;filter:none;transform:none}}
   .hd{display:flex;align-items:center;gap:8px;padding:7px 11px;border-bottom:1px solid var(--line)}
   .hd b{font-weight:500;font-size:12.5px}
   .dot{width:6px;height:6px;border-radius:50%;background:#57534e;flex-shrink:0;transition:.2s}
   .dot.on{background:var(--or);box-shadow:0 0 0 3px rgba(249,115,22,.16)}
   .hd .ch{margin-left:auto;font-size:11px;color:var(--mu);font-variant-numeric:tabular-nums}
+  .tag{font-size:9.5px;text-transform:uppercase;letter-spacing:.04em;padding:2px 7px;border-radius:4px;font-weight:600}
+  .tag.ai{background:rgba(249,115,22,.14);color:var(--or)}
   .fr{position:relative;aspect-ratio:16/9;background:#000;cursor:zoom-in}
   .fr img{width:100%;height:100%;object-fit:contain;display:block}
   .fr .msg{position:absolute;inset:0;display:grid;place-items:center;font-size:11.5px;color:var(--mu)}
+  .fr .overlay{position:absolute;left:0;right:0;bottom:0;padding:6px 10px;background:linear-gradient(transparent,rgba(0,0,0,.75));display:flex;gap:6px;align-items:center;opacity:0;transition:.2s}
+  .cam:hover .overlay{opacity:1}
+  .ovbtn{background:rgba(28,25,23,.85);border:1px solid var(--line);color:var(--tx);border-radius:6px;padding:4px 10px;font:inherit;font-size:11.5px;cursor:pointer;backdrop-filter:blur(4px)}
+  .ovbtn:hover{border-color:var(--or)}
+  .ovbtn.live{border-color:var(--or);color:var(--or)}
+  /* ---------- événements IA ---------- */
+  .toolbar{display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+  .seg{display:flex;gap:2px;background:var(--card);padding:2px;border-radius:8px}
+  .seg button{padding:4px 11px;border:0;background:0;color:var(--mu);font:inherit;font-size:12px;border-radius:6px;cursor:pointer}
+  .seg button[aria-selected=true]{background:var(--or);color:#0c0a09;font-weight:600}
+  .evlist{display:flex;flex-direction:column;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .ev{display:flex;align-items:center;gap:12px;padding:9px 12px;background:var(--card);cursor:pointer;transition:.15s;animation:in .3s both}
+  .ev:hover{background:#221e1b}
+  .ev .thumb{width:96px;height:54px;border-radius:6px;background:#000;object-fit:cover;flex-shrink:0}
+  .ev .meta{flex:1;min-width:0}
+  .ev .t1{font-size:13px;font-weight:500;display:flex;align-items:center;gap:7px}
+  .ev .t2{font-size:11.5px;color:var(--mu);margin-top:1px}
+  .conf{font-size:10.5px;font-weight:600;color:var(--or);background:rgba(249,115,22,.14);padding:2px 7px;border-radius:4px;font-variant-numeric:tabular-nums}
+  .stat{font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;padding:2px 7px;border-radius:4px;font-weight:600;flex-shrink:0}
+  .stat.pending{background:rgba(249,115,22,.14);color:var(--or)}
+  .stat.ok{background:rgba(168,162,158,.14);color:var(--mu)}
+  .stat.fp{background:rgba(87,83,78,.2);color:var(--dim)}
+  .ev .time{font-size:11.5px;color:var(--mu);font-variant-numeric:tabular-nums;flex-shrink:0}
+  /* ---------- clips ---------- */
+  .cliplist{display:flex;flex-direction:column;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .clip{display:flex;align-items:center;gap:12px;padding:9px 12px;background:var(--card)}
+  .clip .ic{width:30px;height:30px;border-radius:6px;background:rgba(249,115,22,.12);color:var(--or);display:grid;place-items:center;font-size:13px;flex-shrink:0}
+  .clip .meta{flex:1;min-width:0}
+  .clip .t1{font-size:12.5px;font-weight:500;font-family:ui-monospace,Menlo,monospace}
+  .clip .t2{font-size:11px;color:var(--mu)}
+  /* ---------- analytics placeholder ---------- */
+  .placeholder{border:1px dashed var(--line);border-radius:12px;padding:48px 20px;text-align:center;color:var(--mu)}
+  .placeholder .big{font-size:15px;color:var(--tx);font-weight:600;margin-bottom:4px}
+  .placeholder .ghost{display:flex;gap:12px;justify-content:center;margin-top:22px;flex-wrap:wrap}
+  .ghost .bar{width:150px;height:90px;border-radius:10px;background:var(--card);border:1px solid var(--line);animation:pulse 1.6s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:.5}50%{opacity:1}}
+  /* ---------- dialogue live ---------- */
   dialog{border:0;padding:0;background:0;max-width:96vw;max-height:96vh}
   dialog::backdrop{background:rgba(0,0,0,.82);backdrop-filter:blur(3px)}
-  dialog img{max-width:96vw;max-height:90vh;border-radius:10px;display:block}
-  dialog .cap{padding:8px 2px;font-size:12px;color:var(--mu);display:flex;gap:12px}
+  dialog img{max-width:96vw;max-height:86vh;border-radius:10px;display:block}
+  dialog .cap{padding:8px 2px;font-size:12px;color:var(--mu);display:flex;gap:12px;align-items:center}
+  /* ---------- slideover validation ---------- */
+  .so{position:fixed;top:0;right:0;bottom:0;width:420px;max-width:92vw;background:var(--card);border-left:1px solid var(--line);z-index:40;transform:translateX(100%);transition:transform .25s ease;display:flex;flex-direction:column}
+  .so.open{transform:none}
+  .so-hd{padding:10px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
+  .so-hd b{font-size:13.5px;font-weight:600}
+  .so-hd .x{margin-left:auto;background:0;border:0;color:var(--mu);font-size:18px;cursor:pointer;line-height:1}
+  .so-img{background:#000;position:relative}
+  .so-img img{width:100%;display:block;aspect-ratio:16/9;object-fit:contain}
+  .so-body{padding:12px 14px;overflow-y:auto;flex:1}
+  .so-body .row{display:flex;justify-content:space-between;padding:6px 0;font-size:12.5px;border-bottom:1px solid var(--line)}
+  .so-body .row .k{color:var(--mu)}
+  .so-ft{padding:10px 14px;border-top:1px solid var(--line);display:flex;gap:8px}
+  .so-ft button{flex:1;padding:8px;border-radius:8px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+  .btn-val{background:var(--or);color:#0c0a09;border:0}
+  .btn-fp{background:0;color:var(--mu);border:1px solid var(--line)}
+  .btn-fp:hover{border-color:var(--dim);color:var(--tx)}
 </style>
 </head>
 <body>
+
 <header>
-  <h1>Bossini Ste-Foy</h1>
-  <div class="tabs" id="tabs"></div>
+  <div class="brand">
+    <div class="logo">V</div>
+    <div><b>Vision</b> <span class="sub">· monitoring</span></div>
+  </div>
+  <div class="pills" id="sites"></div>
+  <span class="sp"></span>
+  <div class="ctrl">
+    <span id="stat"></span>
+  </div>
+</header>
+
+<nav>
+  <div class="pills" id="views"></div>
   <span class="sp"></span>
   <div class="ctrl">
     <label>Rafraîchir
@@ -52,11 +131,88 @@
       </select>
     </label>
     <button class="act" id="now">Actualiser</button>
-    <span id="stat"></span>
   </div>
-</header>
-<div id="grid"></div>
+</nav>
+
+<main>
+  <!-- Vue caméras -->
+  <section class="view" id="view-cameras">
+    <div class="tabs" id="tabs" style="display:flex;gap:2px;background:var(--card);padding:2px;border-radius:8px;margin-bottom:12px;width:max-content"></div>
+    <div id="grid"></div>
+  </section>
+
+  <!-- Vue événements IA -->
+  <section class="view" id="view-events" hidden>
+    <div class="toolbar">
+      <div class="seg" id="evFilter">
+        <button data-f="pending" aria-selected="true">À valider</button>
+        <button data-f="all">Tous</button>
+        <button data-f="ok">Validés</button>
+        <button data-f="fp">Faux positifs</button>
+      </div>
+      <span class="sp"></span>
+      <span id="evStat" style="font-size:12px;color:var(--mu)"></span>
+    </div>
+    <div class="evlist" id="evlist"></div>
+  </section>
+
+  <!-- Vue clips -->
+  <section class="view" id="view-clips" hidden>
+    <div class="toolbar">
+      <span style="font-size:12px;color:var(--mu)">Segments exportés pour le jeu d'évaluation</span>
+    </div>
+    <div class="cliplist" id="cliplist"></div>
+  </section>
+
+  <!-- Vue analytics (à venir) -->
+  <section class="view" id="view-analytics" hidden>
+    <div class="placeholder">
+      <div class="big">Analyse &amp; métriques</div>
+      <div>Précision, faux positifs, coût journalier par succursale — à venir</div>
+      <div class="ghost"><div class="bar"></div><div class="bar"></div><div class="bar"></div></div>
+    </div>
+  </section>
+</main>
+
 <dialog id="lb"><img><div class="cap"><span id="lbT"></span></div></dialog>
+
+<!-- SlideOver validation humaine -->
+<div class="so" id="so">
+  <div class="so-hd"><b id="soTitle">Événement</b><button class="x" onclick="soClose()">×</button></div>
+  <div class="so-img"><img id="soImg" alt=""></div>
+  <div class="so-body">
+    <div class="row"><span class="k">Caméra</span><span id="soCam"></span></div>
+    <div class="row"><span class="k">Heure</span><span id="soTime"></span></div>
+    <div class="row"><span class="k">Type</span><span id="soType"></span></div>
+    <div class="row"><span class="k">Confiance</span><span id="soConf" style="color:var(--or)"></span></div>
+  </div>
+  <div class="so-ft">
+    <button class="btn-fp" onclick="soMark('fp')">Faux positif</button>
+    <button class="btn-val" onclick="soMark('ok')">Valider</button>
+  </div>
+</div>
+
+<!-- SlideOver export de clip -->
+<div class="so" id="soClip">
+  <div class="so-hd"><b>Exporter un clip</b><button class="x" onclick="soClipClose()">×</button></div>
+  <div class="so-body">
+    <div class="row"><span class="k">Caméra</span><span id="clipCam"></span></div>
+    <div class="row"><span class="k">Durée</span>
+      <span class="seg" id="clipDur">
+        <button data-m="1">1 min</button>
+        <button data-m="5" aria-selected="true">5 min</button>
+        <button data-m="10">10 min</button>
+        <button data-m="30">30 min</button>
+      </span>
+    </div>
+    <div class="row"><span class="k">Période</span><span id="clipRange" style="font-variant-numeric:tabular-nums"></span></div>
+    <div id="clipResult" style="padding:8px 0;font-size:12px;color:var(--mu)"></div>
+  </div>
+  <div class="so-ft">
+    <button class="btn-fp" onclick="soClipClose()">Annuler</button>
+    <button class="btn-val" id="clipGo" onclick="doExportClip()">Exporter</button>
+  </div>
+</div>
 
 <script>
 const API = location.origin.replace(/:\d+$/, ':8090');
@@ -64,12 +220,68 @@ const grid = document.getElementById('grid');
 const tabs = document.getElementById('tabs');
 const stat = document.getElementById('stat');
 const lb = document.getElementById('lb');
-let nvrs = [], active = null, timer = null, busy = false;
+const so = document.getElementById('so');
+let nvrs = [], active = null, timer = null, busy = false, curSite = null;
+let clipNvr = null, clipCh = 0, clipRangeStart = '', clipRangeEnd = '';
 
 const url = (id, ch) => `${API}/snapshot/${id}/${ch}?t=${Date.now()}`;
 const liveUrl = (id, ch) => `${API}/live/${id}/${ch}`;
 
-// Le SDK sérialise les captures : on charge canal par canal pour ne pas saturer le NVR.
+/* ---------- succursales ---------- */
+const SITES = [
+  { id: 'bossini-stefoy', name: 'Bossini Ste-Foy', active: true },
+  { id: 'bossini-neufchatel', name: 'Bossini Neufchâtel', soon: true },
+  { id: 'bossini-lebourgneuf', name: 'Bossini Lebourgneuf', soon: true },
+  { id: 'site-ajouter', name: '+ Ajouter', soon: true },
+];
+
+function renderSites() {
+  const el = document.getElementById('sites');
+  el.innerHTML = '';
+  SITES.forEach((s, i) => {
+    const b = document.createElement('button');
+    b.className = 'pill';
+    b.textContent = s.name;
+    if (s.soon) { b.innerHTML += ' <span class="soon">bientôt</span>'; b.disabled = true; b.style.opacity = '.5'; }
+    b.setAttribute('aria-selected', s.active);
+    b.onclick = () => s.active && selectSite(s);
+    el.append(b);
+  });
+  selectSite(SITES.find(s => s.active));
+}
+function selectSite(s) {
+  curSite = s;
+  [...document.getElementById('sites').children].forEach((b, i) => b.setAttribute('aria-selected', SITES[i].id === s.id));
+}
+
+/* ---------- navigation par vues ---------- */
+const VIEWS = [
+  { id: 'cameras', name: 'Caméras' },
+  { id: 'events', name: 'Événements IA' },
+  { id: 'clips', name: 'Clips' },
+  { id: 'analytics', name: 'Analytics', soon: true },
+];
+function renderViews() {
+  const el = document.getElementById('views');
+  el.innerHTML = '';
+  VIEWS.forEach(v => {
+    const b = document.createElement('button');
+    b.className = 'pill';
+    b.textContent = v.name;
+    if (v.soon) b.innerHTML += ' <span class="soon">à venir</span>';
+    b.onclick = () => switchView(v.id);
+    b.dataset.v = v.id;
+    el.append(b);
+  });
+}
+function switchView(id) {
+  [...document.getElementById('views').children].forEach(b => b.setAttribute('aria-selected', b.dataset.v === id));
+  VIEWS.forEach(v => document.getElementById('view-' + v.id).hidden = (v.id !== id));
+  if (id === 'events') renderEvents();
+  if (id === 'clips') renderClips();
+}
+
+/* ---------- caméras ---------- */
 function load(img, src) {
   return new Promise(res => {
     img.onload = () => { img.hidden = false; res(true); };
@@ -77,7 +289,6 @@ function load(img, src) {
     img.src = src;
   });
 }
-
 async function sweep() {
   if (busy) return;
   busy = true;
@@ -97,7 +308,6 @@ async function sweep() {
   }
   busy = false;
 }
-
 async function boot() {
   try {
     nvrs = (await (await fetch(`${API}/api/nvrs`)).json()).nvrs;
@@ -108,7 +318,7 @@ async function boot() {
   tabs.innerHTML = '';
   nvrs.forEach(n => {
     const b = document.createElement('button');
-    b.className = 'tab';
+    b.className = 'pill';
     b.textContent = `${n.model || n.id} · ${n.channels}`;
     b.onclick = () => show(n.id);
     b.dataset.id = n.id;
@@ -116,7 +326,6 @@ async function boot() {
   });
   show(nvrs[0]?.id);
 }
-
 function show(id) {
   active = id;
   [...tabs.children].forEach(b => b.setAttribute('aria-selected', b.dataset.id === id));
@@ -128,32 +337,156 @@ function show(id) {
     const el = document.createElement('div');
     el.className = 'cam';
     el.style.setProperty('--i', i);
-    el.innerHTML = `<div class="hd"><span class="dot"></span><b>Caméra ${i + 1}</b><span class="ch">ch ${ch}</span></div>
-      <div class="fr"><div class="msg">chargement…</div><img alt="Caméra ${i + 1}" hidden></div>`;
+    el.innerHTML = `<div class="hd"><span class="dot"></span><b>Caméra ${i + 1}</b><span class="tag ai">IA</span><span class="ch">ch ${ch}</span></div>
+      <div class="fr"><div class="msg">chargement…</div><img alt="Caméra ${i + 1}" hidden>
+        <div class="overlay"><button class="ovbtn live">▶ Live</button><button class="ovbtn">Clip</button></div>
+      </div>`;
     const img = el.querySelector('img');
-    el.querySelector('.fr').onclick = () => {
-      // Ouvre le flux live continu dans le dialogue
-      const li = lb.querySelector('img');
-      li.src = liveUrl(n.id, ch);
-      document.getElementById('lbT').textContent = `${n.model} · canal ${ch} — flux live`;
-      lb.showModal();
-    };
+    el.querySelector('.ovbtn.live').onclick = e => { e.stopPropagation(); openLive(n, ch); };
+    el.querySelector('.ovbtn:not(.live)').onclick = e => { e.stopPropagation(); openClip(n, ch); };
+    el.querySelector('.fr').onclick = () => openLive(n, ch);
     grid.append(el);
   }
   sweep();
   schedule();
 }
-
+function openLive(n, ch) {
+  lb.querySelector('img').src = liveUrl(n.id, ch);
+  document.getElementById('lbT').textContent = `${curSite?.name} · ${n.model} · canal ${ch} — flux live`;
+  lb.showModal();
+}
+function openClip(n, ch) {
+  clipNvr = n; clipCh = ch;
+  document.getElementById('clipCam').textContent = `${curSite?.name} · ${n.model} · canal ${ch}`;
+  updateClipRange();
+  document.getElementById('clipResult').textContent = '';
+  document.getElementById('clipGo').disabled = false;
+  document.getElementById('soClip').classList.add('open');
+}
+function updateClipRange() {
+  const m = +document.querySelector('#clipDur button[aria-selected=true]').dataset.m;
+  const end = new Date(), start = new Date(end.getTime() - m * 60000);
+  const f = d => '' + d.getFullYear() + String(d.getMonth()+1).padStart(2,'0') + String(d.getDate()).padStart(2,'0') +
+                 String(d.getHours()).padStart(2,'0') + String(d.getMinutes()).padStart(2,'0') + String(d.getSeconds()).padStart(2,'0');
+  document.getElementById('clipRange').textContent = `${start.toLocaleTimeString('fr-CA')} → ${end.toLocaleTimeString('fr-CA')}`;
+  clipRangeStart = f(start); clipRangeEnd = f(end);
+}
+async function doExportClip() {
+  if (!clipNvr) return;
+  const go = document.getElementById('clipGo');
+  go.disabled = true;
+  const res = document.getElementById('clipResult');
+  res.textContent = 'Export en cours…';
+  try {
+    const r = await fetch(`${API}/clip/${clipNvr.id}/${clipCh}?start=${clipRangeStart}&end=${clipRangeEnd}`);
+    if (r.ok) {
+      const j = await r.json();
+      res.innerHTML = `<span style="color:var(--or)">Clip exporté</span><br><span style="font-family:ui-monospace,Menlo,monospace">${j.file}</span>`;
+    } else {
+      res.textContent = (r.status === 404)
+        ? 'Aucun enregistrement sur cette plage (enregistrement sur événement ?)'
+        : `Export impossible (${r.status})`;
+    }
+  } catch {
+    res.textContent = 'Export impossible — service SDK injoignable';
+  }
+  go.disabled = false;
+}
+function soClipClose() { document.getElementById('soClip').classList.remove('open'); }
 function schedule() {
   clearInterval(timer);
   const ms = +document.getElementById('rate').value;
   if (ms) timer = setInterval(sweep, ms);
 }
 
+/* ---------- événements IA (données de démo) ---------- */
+let EVENTS = [
+  { id: 1, cam: 'Bossini Ste-Foy · Caméra 1 (ch33)', time: '12:41:07', type: 'Mouvement suspect', conf: 87, status: 'pending', nvr: 'nvr8000', ch: 33 },
+  { id: 2, cam: 'Bossini Ste-Foy · Caméra 4 (ch36)', time: '12:38:52', type: 'Personne après fermeture', conf: 92, status: 'pending', nvr: 'nvr8000', ch: 36 },
+  { id: 3, cam: 'Bossini Ste-Foy · Caméra 2 (ch34)', time: '12:35:11', type: 'Véhicule zone interdite', conf: 71, status: 'pending', nvr: 'nvr8000', ch: 34 },
+  { id: 4, cam: 'Bossini Ste-Foy · Caméra 1 (ch33)', time: '11:58:40', type: 'Mouvement suspect', conf: 64, status: 'ok', nvr: 'nvr8000', ch: 33 },
+  { id: 5, cam: 'Bossini Ste-Foy · Caméra 3 (ch35)', time: '11:47:02', type: 'Personne après fermeture', conf: 45, status: 'fp', nvr: 'nvr8000', ch: 35 },
+  { id: 6, cam: 'Bossini Ste-Foy · Caméra 6 (ch38)', time: '11:22:18', type: 'Véhicule zone interdite', conf: 80, status: 'ok', nvr: 'nvr8000', ch: 38 },
+];
+let evFilter = 'pending';
+const STAT_LABEL = { pending: 'À valider', ok: 'Validé', fp: 'Faux positif' };
+
+function renderEvents() {
+  const el = document.getElementById('evlist');
+  const list = EVENTS.filter(e => evFilter === 'all' || e.status === evFilter);
+  el.innerHTML = '';
+  if (!list.length) {
+    el.innerHTML = '<div style="padding:24px;text-align:center;color:var(--mu);background:var(--card)">Aucun événement</div>';
+  }
+  list.forEach((e, i) => {
+    const d = document.createElement('div');
+    d.className = 'ev';
+    d.style.setProperty('--i', i);
+    d.innerHTML = `<img class="thumb" src="${url(e.nvr, e.ch)}" alt="">
+      <div class="meta">
+        <div class="t1">${e.type} <span class="conf">${e.conf}%</span></div>
+        <div class="t2">${e.cam}</div>
+      </div>
+      <span class="stat ${e.status}">${STAT_LABEL[e.status]}</span>
+      <span class="time">${e.time}</span>`;
+    d.onclick = () => openEvent(e);
+    el.append(d);
+  });
+  document.getElementById('evStat').textContent = `${list.length} événement(s)`;
+}
+function openEvent(e) {
+  document.getElementById('soTitle').textContent = e.type;
+  document.getElementById('soImg').src = url(e.nvr, e.ch);
+  document.getElementById('soCam').textContent = e.cam;
+  document.getElementById('soTime').textContent = e.time;
+  document.getElementById('soType').textContent = e.type;
+  document.getElementById('soConf').textContent = e.conf + ' %';
+  so.dataset.id = e.id;
+  so.classList.add('open');
+}
+function soClose() { so.classList.remove('open'); }
+function soMark(status) {
+  const e = EVENTS.find(x => x.id == so.dataset.id);
+  if (e) { e.status = status; renderEvents(); }
+  soClose();
+}
+
+/* ---------- clips ---------- */
+function renderClips() {
+  const el = document.getElementById('cliplist');
+  const demo = [
+    { f: 'nvr8000_ch33_20260911121115_20260911122115.mp4', s: '56 Mo', d: '9 min 01 s' },
+    { f: 'nvr8000_ch33_20260911121224_20260911121724.mp4', s: '27 Mo', d: '5 min 00 s' },
+  ];
+  el.innerHTML = '';
+  demo.forEach(c => {
+    const d = document.createElement('div');
+    d.className = 'clip';
+    d.innerHTML = `<div class="ic">▷</div>
+      <div class="meta"><div class="t1">${c.f}</div><div class="t2">${c.d} · ${c.s} · HEVC 1080p</div></div>`;
+    el.append(d);
+  });
+}
+
+/* ---------- init ---------- */
 document.getElementById('rate').onchange = schedule;
 document.getElementById('now').onclick = sweep;
+document.getElementById('evFilter').addEventListener('click', e => {
+  if (e.target.tagName !== 'BUTTON') return;
+  evFilter = e.target.dataset.f;
+  [...document.getElementById('evFilter').children].forEach(b => b.setAttribute('aria-selected', b.dataset.f === evFilter));
+  renderEvents();
+});
+document.getElementById('clipDur').addEventListener('click', e => {
+  if (e.target.tagName !== 'BUTTON') return;
+  [...document.getElementById('clipDur').children].forEach(b => b.setAttribute('aria-selected', b.dataset.m === e.target.dataset.m));
+  updateClipRange();
+});
 lb.onclick = e => { if (e.target === lb) lb.close(); };
-lb.onclose = () => { lb.querySelector('img').src = ''; };  // coupe le flux live
+lb.onclose = () => { lb.querySelector('img').src = ''; };
+renderSites();
+renderViews();
+switchView('cameras');
 boot();
 </script>
 </body>
