@@ -21,8 +21,10 @@ docker build --platform linux/amd64 -q -t hik-sdk ./docker >/dev/null
 
 echo "Service SDK sur le port $SDK_PORT..."
 docker rm -f hik-sdk >/dev/null 2>&1 || true
+mkdir -p clips
 docker run -d --name hik-sdk --restart unless-stopped --platform linux/amd64 \
   -p "$SDK_PORT:8090" \
+  -v "$(pwd)/clips:/clips" \
   -e HIK_HOST="$HIK_HOST" -e HIK_USER="$HIK_USER" -e HIK_PASS="$HIK_PASS" \
   -e HIK_PORTS="$HIK_PORTS" \
   hik-sdk >/dev/null

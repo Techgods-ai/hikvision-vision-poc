@@ -5,6 +5,9 @@ cameras.json
 *.key
 *.pem
 
+# Clips exportés (vidéos de surveillance)
+clips/
+
 # Proprietary SDK binaries and archives
 sdk/
 sdk_officiel/

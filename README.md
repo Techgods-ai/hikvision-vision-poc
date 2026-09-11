@@ -49,6 +49,7 @@ Arrêt : `./stop.sh`
 |---|---|
 | `GET /api/nvrs` | inventaire JSON : modèle, canaux, état de connexion |
 | `GET /snapshot/<nvr>/<canal>` | JPEG pleine résolution |
+| `GET /clip/<nvr>/<canal>?start=YYYYMMDDHHMMSS&end=YYYYMMDDHHMMSS` | exporte un clip vidéo HEVC |
 | `GET /health` | identique à `/api/nvrs` |
 
 Exemple :
@@ -56,9 +57,10 @@ Exemple :
 ```bash
 curl http://localhost:8090/api/nvrs
 curl -o cam.jpg http://localhost:8090/snapshot/nvr8000/33
+curl "http://localhost:8090/clip/nvr8000/33?start=$(date -v-5M +%Y%m%d%H%M%S)&end=$(date +%Y%m%d%H%M%S)"
 ```
 
-L'identifiant de NVR est `nvr<port>`, par exemple `nvr8000`.
+L'identifiant de NVR est `nvr<port>`, par exemple `nvr8000`. Les clips sont écrits dans `clips/` (monté en volume, non versionné) et retournés en JSON avec leur chemin.
 
 ## Architecture
 
@@ -90,6 +92,8 @@ Interface web :8080
 - `wPicSize = 0xff` donne la résolution native ; les autres valeurs forcent des formats réduits (2 donne du 352x288).
 - Les caméras IP d'un NVR commencent au canal 33, pas au canal 1.
 - Colima ne monte pas `/var/folders` dans sa VM : les volumes Docker doivent pointer sous `$HOME`.
+- **Timezone** : le conteneur Debian est en UTC par défaut alors que les NVR sont à l'heure locale (UTC-4). Une recherche d'enregistrements calculée en UTC vise le futur du NVR et ne trouve rien. Installer `tzdata` et `TZ=America/Toronto`.
+- **Export de clip** : il faut `NET_DVR_GetFileByTime_V40` (pas l'ancienne `GetFileByTime`), avec `NET_DVR_PLAYCOND.byDownload = 1`, puis `PlayBackControl(PLAYSTART)` pour lancer le téléchargement. Sans le `PLAYSTART`, le SDK crée le fichier mais n'écrit rien (0 octet).
 
 ## Sécurité et licence
 

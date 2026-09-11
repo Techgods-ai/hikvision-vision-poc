@@ -73,6 +73,78 @@ static Nvr *findNvr(const std::string &id) {
     return nullptr;
 }
 
+// Parse "YYYYMMDDHHMMSS" en NET_DVR_TIME. Retourne false si invalide.
+static bool parseTime(const std::string &s, NET_DVR_TIME &t) {
+    if (s.size() != 14) return false;
+    for (char c : s) if (c < '0' || c > '9') return false;
+    t.dwYear   = atoi(s.substr(0, 4).c_str());
+    t.dwMonth  = atoi(s.substr(4, 2).c_str());
+    t.dwDay    = atoi(s.substr(6, 2).c_str());
+    t.dwHour   = atoi(s.substr(8, 2).c_str());
+    t.dwMinute = atoi(s.substr(10, 2).c_str());
+    t.dwSecond = atoi(s.substr(12, 2).c_str());
+    return t.dwYear >= 2020 && t.dwMonth >= 1 && t.dwMonth <= 12 &&
+           t.dwDay >= 1 && t.dwDay <= 31 && t.dwHour <= 23 &&
+           t.dwMinute <= 59 && t.dwSecond <= 59;
+}
+
+// Extrait un paramètre de query string. Retourne false si absent.
+static bool queryParam(const char *req, const char *key, std::string &out) {
+    const char *q = strchr(req, '?');
+    if (!q) return false;
+    q++;
+    char needle[64];
+    snprintf(needle, sizeof needle, "%s=", key);
+    const char *p = strstr(q, needle);
+    if (!p) return false;
+    p += strlen(needle);
+    out.clear();
+    while (*p && *p != '&' && *p != ' ' && *p != '\r' && *p != '\n') out += *p++;
+    return !out.empty();
+}
+
+// Exporte un segment vidéo [start, end) vers /clips/<nvr>_<canal>_<start>-<end>.mp4
+static bool exportClip(Nvr &n, int chan, const std::string &start, const std::string &end,
+                       std::string &savedPath) {
+    NET_DVR_TIME t0, t1;
+    if (!parseTime(start, t0) || !parseTime(end, t1)) return false;
+
+    char file[256];
+    snprintf(file, sizeof file, "/clips/%s_ch%d_%s_%s.mp4",
+             n.id.c_str(), chan, start.c_str(), end.c_str());
+
+    NET_DVR_PLAYCOND cond;
+    memset(&cond, 0, sizeof cond);
+    cond.dwChannel = chan;
+    cond.struStartTime = t0;
+    cond.struStopTime = t1;
+    cond.byStreamType = 0;   // flux principal
+    cond.byDownload = 1;     // mode téléchargement
+
+    pthread_mutex_lock(&n.lock);
+    if (n.uid < 0) nvrLogin(n);
+    LONG h = n.uid >= 0 ? NET_DVR_GetFileByTime_V40(n.uid, file, &cond) : -1;
+    pthread_mutex_unlock(&n.lock);
+
+    if (h < 0) {
+        printf("[%s] export clip ch%d echec code=%u\n", n.id.c_str(), chan, NET_DVR_GetLastError());
+        fflush(stdout);
+        return false;
+    }
+    // Démarrer le téléchargement (indispensable, comme dans le demo officiel)
+    NET_DVR_PlayBackControl(h, NET_DVR_PLAYSTART, 0, nullptr);
+    for (int i = 0; i < 600; i++) {
+        usleep(500000);
+        LONG pos = NET_DVR_GetDownloadPos(h);
+        if (pos == 100 || pos < 0) break;
+    }
+    NET_DVR_StopGetFile(h);
+    savedPath = file;
+    printf("[%s] clip exporté ch%d : %s\n", n.id.c_str(), chan, file);
+    fflush(stdout);
+    return true;
+}
+
 static void sendAll(int fd, const char *p, size_t len) {
     while (len) { ssize_t w = send(fd, p, len, 0); if (w <= 0) return; p += w; len -= w; }
 }
@@ -114,6 +186,25 @@ static void *serve(void *arg) {
 
     if (!strcmp(path, "/api/nvrs") || !strcmp(path, "/health")) {
         reply(fd, "200 OK", "application/json", jsonInventory());
+    } else if (!strncmp(path, "/clip/", 6)) {
+        char id[64] = {0}; int chan = 0;
+        if (sscanf(path + 6, "%63[^/]/%d", id, &chan) == 2) {
+            std::string start, end;
+            if (!queryParam(req, "start", start) || !queryParam(req, "end", end)) {
+                reply(fd, "400 Bad Request", "text/plain",
+                      "requis: ?start=YYYYMMDDHHMMSS&end=YYYYMMDDHHMMSS");
+            } else {
+                Nvr *n = findNvr(id);
+                std::string saved;
+                if (n && exportClip(*n, chan, start, end, saved))
+                    reply(fd, "200 OK", "application/json",
+                          "{\"status\":\"ok\",\"file\":\"" + saved + "\"}");
+                else
+                    reply(fd, "502 Bad Gateway", "text/plain", "export impossible (plage vide ou NVR indisponible)");
+            }
+        } else {
+            reply(fd, "400 Bad Request", "text/plain", "format: /clip/<nvr>/<canal>?start=..&end=..");
+        }
     } else if (!strncmp(path, "/snapshot/", 10)) {
         char id[64] = {0}; int chan = 0;
         if (sscanf(path + 10, "%63[^/]/%d", id, &chan) == 2) {
