@@ -1,73 +1,108 @@
-# Hikvision Vision POC
+# Vision POC — NVR Hikvision
 
-POC local de connexion aux NVR Hikvision Bossini Ste-Foy et de capture d'images via le Device Network SDK officiel.
+Connexion aux NVR Hikvision via le Device Network SDK officiel, capture d'images pleine résolution et interface web multi-caméras. Base technique pour un pilote de détection d'événements en restaurant.
 
-## État actuel
+## État
 
-Validé sur Mac Apple Silicon avec Colima/Docker et émulation `linux/amd64` :
+Validé sur macOS Apple Silicon (Colima + Docker, émulation `linux/amd64`) :
 
-- login SDK Hikvision sur les trois NVR;
-- capture JPEG du canal IP 33;
-- inventaire des appareils détectés.
+- login SDK sur les 3 NVR du site, avec reconnexion automatique ;
+- capture JPEG **1920x1080** (résolution native du flux) ;
+- API HTTP locale de snapshots ;
+- interface web avec onglets par NVR, rafraîchissement réglable et plein écran.
 
-| Port | Modèle | Canaux IP |
+| Port SDK | Modèle | Canaux |
 |---:|---|---:|
-| 8001 | DS-7604NXI-K1/4P | 4, canaux 33 à 36 |
-| 8000 | DS-7616NI-Q2/16P | 16, canaux 33 à 48 |
-| 7000 | DS-7616NXI-K2/16P | 16, canaux 33 à 48 |
+| 8001 | DS-7604NXI-K1/4P | 4 (33 à 36) |
+| 8000 | DS-7616NI-Q2/16P | 16 (33 à 48) |
+| 7000 | DS-7616NXI-K2/16P | 16 (33 à 48) |
 
-## Accéder à l'interface actuelle
+## Prérequis
 
-Le viewer web RTSP existant se lance avec :
+- macOS ou Linux, Docker (via Colima sur Mac) ;
+- le SDK Hikvision officiel `EN-HCNetSDKV6.1.9.48_build20230410_linux64.zip`, non inclus dans ce dépôt.
 
-```bash
-cd ~/camviewer
-python3 viewer.py 8080
-```
-
-Puis ouvrir : http://localhost:8080
-
-Important : cette interface attend des URLs RTSP. Les NVR distants de ce POC exposent actuellement le SDK Hikvision sur les ports 8001, 8000 et 7000. Le viewer web n'affichera donc pas encore les NVR SDK.
-
-## Test SDK
+Installation du SDK :
 
 ```bash
-cd ~/camviewer
-colima start --cpu 2 --memory 4
-cd docker
-docker build --platform linux/amd64 -t hik-sdk-test .
-mkdir -p out
-docker run --rm --platform linux/amd64 -v "$PWD/out:/out" hik-sdk-test ./test_sdk bstf-rtr-gw.gbm10.com 8000
+unzip EN-HCNetSDKV6.1.9.48_build20230410_linux64.zip -d /tmp/hiksdk
+SDK=/tmp/hiksdk/EN-HCNetSDKV6.1.9.48_build20230410_linux64
+mkdir -p docker/libs
+cp -R "$SDK/lib/." docker/libs/
+cp "$SDK/incEn/HCNetSDK.h" docker/
 ```
 
-Ne jamais committer de mot de passe ou de secret. Avant un déploiement partagé, remplacer les valeurs de test par des variables d'environnement ou Docker secrets.
+## Démarrage
 
-## Architecture cible
+```bash
+cp .env.example .env    # renseigner HIK_HOST, HIK_USER, HIK_PASS
+./start.sh
+```
+
+Interface : http://localhost:8080
+
+Arrêt : `./stop.sh`
+
+## API
+
+| Route | Réponse |
+|---|---|
+| `GET /api/nvrs` | inventaire JSON : modèle, canaux, état de connexion |
+| `GET /snapshot/<nvr>/<canal>` | JPEG pleine résolution |
+| `GET /health` | identique à `/api/nvrs` |
+
+Exemple :
+
+```bash
+curl http://localhost:8090/api/nvrs
+curl -o cam.jpg http://localhost:8090/snapshot/nvr8000/33
+```
+
+L'identifiant de NVR est `nvr<port>`, par exemple `nvr8000`.
+
+## Architecture
 
 ```text
-NVR Hikvision distant
-  | SDK privé Hikvision, port 8000/8001/7000
+NVR Hikvision
+  | SDK privé Hikvision (ports 8001 / 8000 / 7000)
   v
-Service capture local Docker amd64
-  | JPEG / frames / événements
+sdk_service (C++, Docker linux/amd64)
+  | API HTTP :8090, sessions persistantes, relogin automatique
   v
-API localhost + interface web
-  | clips, validation humaine, métriques
+Interface web :8080
+  | grille multi-caméras, snapshots, plein écran
   v
-Moteur d'analyse sous licence commerciale
+[à venir] moteur d'analyse sous licence commerciale
 ```
 
-## Prochaines étapes
+## Contraintes connues
 
-1. Remplacer le binaire de test par un service persistant SDK.
-2. Ajouter les canaux dans une configuration non secrète.
-3. Exposer une API locale de snapshots et de clips.
-4. Construire la grille web SDK, avec statut de connexion et reconnexion.
-5. Brancher le modèle sous licence commerciale après validation des cas d'usage.
-6. Ajouter conservation limitée, journal d'accès et validation humaine.
+**Snapshots, pas de vidéo fluide.** Une capture prend 2 à 3 s par canal via le SDK ; un balayage de 16 caméras demande environ 40 s. C'est suffisant pour de l'analyse d'images, mais ce n'est pas de la surveillance temps réel. Pour de la vidéo live il faudrait `NET_DVR_RealPlay_V30` et un décodage H.265.
+
+**Captures sérialisées.** Le NVR ne répond pas à 16 requêtes simultanées ; l'interface charge les canaux un par un.
+
+**RTSP indisponible.** Le port 554 n'est pas exposé sur le routeur du site ; seul le SDK est accessible à distance. `viewer.py` et `test_rtsp.sh` sont conservés pour un usage RTSP éventuel sur le réseau local.
+
+## Pièges rencontrés
+
+- Le SDK V6 chiffre le login via OpenSSL : sans `libcrypto.so.1.1` et `libssl.so.1.1`, le login échoue avec le code 11 (`NETWORK_ERRORDATA`). Copier `lib/` en entier, y compris `HCNetSDKCom/`.
+- `HCNetSDK.h` utilise `extern "C"` : compiler en C++ (`g++`), pas en C.
+- `wPicSize = 0xff` donne la résolution native ; les autres valeurs forcent des formats réduits (2 donne du 352x288).
+- Les caméras IP d'un NVR commencent au canal 33, pas au canal 1.
+- Colima ne monte pas `/var/folders` dans sa VM : les volumes Docker doivent pointer sous `$HOME`.
 
 ## Sécurité et licence
 
-Le dépôt doit rester privé pendant le POC. Une rotation du mot de passe est recommandée, car il a été partagé dans la conversation et utilisé dans des tests.
+Dépôt **privé**. Les identifiants vivent dans `.env`, jamais dans Git.
 
-Le SDK Hikvision provient du téléchargement officiel `EN-HCNetSDKV6.1.9.48_build20230410_linux64.zip`. Vérifier les conditions Hikvision avant toute redistribution du SDK ou publication d'une image Docker contenant ses bibliothèques. Ce dépôt ne doit pas publier les bibliothèques propriétaires sans validation juridique.
+Le mot de passe utilisé pendant le POC a circulé hors du dépôt : une rotation est recommandée.
+
+Les bibliothèques Hikvision sont propriétaires et exclues du dépôt (`.gitignore`). Vérifier les conditions Hikvision avant toute redistribution ou publication d'une image Docker les contenant.
+
+## Prochaines étapes
+
+1. Confirmer l'inventaire complet des canaux actifs sur les 3 NVR.
+2. Ajouter l'export de clips (`NET_DVR_PlayBackByTime`) pour constituer un jeu d'évaluation.
+3. Brancher le moteur d'analyse sous licence commerciale sur le flux de snapshots.
+4. Ajouter la file de validation humaine et les métriques de précision.
+5. Encadrer la conformité : ÉFVP, durée de conservation, journal d'accès, zones exclues.

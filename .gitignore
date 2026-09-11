@@ -1,7 +1,7 @@
 # Secrets and local config
 cameras.json
 .env
-.env.*
+!.env.example
 *.key
 *.pem
 

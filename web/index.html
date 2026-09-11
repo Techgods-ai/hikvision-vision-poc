@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Caméras · Bossini Ste-Foy</title>
+<style>
+  :root{--bg:#0c0a09;--card:#1c1917;--line:#292524;--or:#f97316;--tx:#fafaf9;--mu:#a8a29e}
+  *{box-sizing:border-box;margin:0}
+  body{background:var(--bg);color:var(--tx);font:14px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+  header{display:flex;align-items:center;gap:16px;padding:12px 20px;border-bottom:1px solid var(--line);position:sticky;top:0;background:rgba(12,10,9,.92);backdrop-filter:blur(12px);z-index:10;flex-wrap:wrap}
+  h1{font-size:15px;font-weight:600;letter-spacing:-.01em}
+  .sp{flex:1}
+  .tabs{display:flex;gap:2px;background:var(--card);padding:2px;border-radius:8px}
+  .tab{padding:5px 12px;border:0;background:0;color:var(--mu);font:inherit;font-size:13px;border-radius:6px;cursor:pointer;transition:.15s}
+  .tab:hover{color:var(--tx)}
+  .tab[aria-selected=true]{background:var(--or);color:#0c0a09;font-weight:600}
+  .ctrl{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--mu)}
+  select{background:var(--card);color:var(--tx);border:1px solid var(--line);border-radius:6px;padding:4px 8px;font:inherit;font-size:12px}
+  button.act{background:var(--card);color:var(--tx);border:1px solid var(--line);border-radius:6px;padding:5px 12px;font:inherit;font-size:12px;cursor:pointer}
+  button.act:hover{border-color:var(--or)}
+  #grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;padding:16px 20px}
+  .cam{background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden;animation:in .4s both}
+  .cam:nth-child(n){animation-delay:calc(var(--i,0)*40ms)}
+  @keyframes in{from{opacity:0;filter:blur(6px);transform:translateY(6px)}to{opacity:1;filter:none;transform:none}}
+  .hd{display:flex;align-items:center;gap:8px;padding:7px 11px;border-bottom:1px solid var(--line)}
+  .hd b{font-weight:500;font-size:12.5px}
+  .dot{width:6px;height:6px;border-radius:50%;background:#57534e;flex-shrink:0;transition:.2s}
+  .dot.on{background:var(--or);box-shadow:0 0 0 3px rgba(249,115,22,.16)}
+  .hd .ch{margin-left:auto;font-size:11px;color:var(--mu);font-variant-numeric:tabular-nums}
+  .fr{position:relative;aspect-ratio:16/9;background:#000;cursor:zoom-in}
+  .fr img{width:100%;height:100%;object-fit:contain;display:block}
+  .fr .msg{position:absolute;inset:0;display:grid;place-items:center;font-size:11.5px;color:var(--mu)}
+  dialog{border:0;padding:0;background:0;max-width:96vw;max-height:96vh}
+  dialog::backdrop{background:rgba(0,0,0,.82);backdrop-filter:blur(3px)}
+  dialog img{max-width:96vw;max-height:90vh;border-radius:10px;display:block}
+  dialog .cap{padding:8px 2px;font-size:12px;color:var(--mu);display:flex;gap:12px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Bossini Ste-Foy</h1>
+  <div class="tabs" id="tabs"></div>
+  <span class="sp"></span>
+  <div class="ctrl">
+    <label>Rafraîchir
+      <select id="rate">
+        <option value="0">manuel</option>
+        <option value="2000">2 s</option>
+        <option value="5000" selected>5 s</option>
+        <option value="15000">15 s</option>
+      </select>
+    </label>
+    <button class="act" id="now">Actualiser</button>
+    <span id="stat"></span>
+  </div>
+</header>
+<div id="grid"></div>
+<dialog id="lb"><img><div class="cap"><span id="lbT"></span></div></dialog>
+
+<script>
+const API = location.origin.replace(/:\d+$/, ':8090');
+const grid = document.getElementById('grid');
+const tabs = document.getElementById('tabs');
+const stat = document.getElementById('stat');
+const lb = document.getElementById('lb');
+let nvrs = [], active = null, timer = null, busy = false;
+
+const url = (id, ch) => `${API}/snapshot/${id}/${ch}?t=${Date.now()}`;
+
+// Le SDK sérialise les captures : on charge canal par canal pour ne pas saturer le NVR.
+function load(img, src) {
+  return new Promise(res => {
+    img.onload = () => { img.hidden = false; res(true); };
+    img.onerror = () => { img.hidden = true; res(false); };
+    img.src = src;
+  });
+}
+
+async function sweep() {
+  if (busy) return;
+  busy = true;
+  const n = nvrs.find(x => x.id === active);
+  if (n) {
+    const cams = [...grid.children];
+    for (let i = 0; i < cams.length; i++) {
+      if (active !== n.id) break;
+      const el = cams[i], img = el.querySelector('img'), msg = el.querySelector('.msg');
+      const ok = await load(img, url(n.id, n.firstChannel + i));
+      el.querySelector('.dot').classList.toggle('on', ok);
+      msg.hidden = ok;
+      if (!ok) msg.textContent = 'aucun signal';
+      stat.textContent = `${i + 1}/${cams.length}`;
+    }
+    stat.textContent = new Date().toLocaleTimeString('fr-CA');
+  }
+  busy = false;
+}
+
+async function boot() {
+  try {
+    nvrs = (await (await fetch(`${API}/api/nvrs`)).json()).nvrs;
+  } catch {
+    stat.textContent = 'service SDK injoignable';
+    return;
+  }
+  tabs.innerHTML = '';
+  nvrs.forEach(n => {
+    const b = document.createElement('button');
+    b.className = 'tab';
+    b.textContent = `${n.model || n.id} · ${n.channels}`;
+    b.onclick = () => show(n.id);
+    b.dataset.id = n.id;
+    tabs.append(b);
+  });
+  show(nvrs[0]?.id);
+}
+
+function show(id) {
+  active = id;
+  [...tabs.children].forEach(b => b.setAttribute('aria-selected', b.dataset.id === id));
+  const n = nvrs.find(x => x.id === id);
+  if (!n) return;
+  grid.innerHTML = '';
+  for (let i = 0; i < n.channels; i++) {
+    const ch = n.firstChannel + i;
+    const el = document.createElement('div');
+    el.className = 'cam';
+    el.style.setProperty('--i', i);
+    el.innerHTML = `<div class="hd"><span class="dot"></span><b>Caméra ${i + 1}</b><span class="ch">ch ${ch}</span></div>
+      <div class="fr"><div class="msg">chargement…</div><img alt="Caméra ${i + 1}" hidden></div>`;
+    const img = el.querySelector('img');
+    el.querySelector('.fr').onclick = () => {
+      if (img.hidden) return;
+      lb.querySelector('img').src = img.src;
+      document.getElementById('lbT').textContent = `${n.model} · canal ${ch}`;
+      lb.showModal();
+    };
+    grid.append(el);
+  }
+  sweep();
+  schedule();
+}
+
+function schedule() {
+  clearInterval(timer);
+  const ms = +document.getElementById('rate').value;
+  if (ms) timer = setInterval(sweep, ms);
+}
+
+document.getElementById('rate').onchange = schedule;
+document.getElementById('now').onclick = sweep;
+lb.onclick = e => { if (e.target === lb) lb.close(); };
+boot();
+</script>
+</body>
+</html>
